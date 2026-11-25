@@ -191,10 +191,10 @@ function finishMove(){var a=anim;applyMove(a.k,a.layer,a.dir);anim=null;var was=
  var now=strays();say('Twist '+AX[a.k]+(a.layer>0?'+':'−')+' (spatial) → stray stickers '+a.before+' → '+now+(solvedCount()>was?' · a face just went pure':''));
  refreshAfter();}
 // ---- 3D view
-var cv=$('cube'),cx=cv.getContext('2d'),yaw=-0.6,pitch=0.5;
+var cv=$('cube'),cx=cv.getContext('2d'),yaw=-0.6,pitch=0.5,cz=1;
 function P(v){var c=Math.cos(yaw),s=Math.sin(yaw),x=v[0]*c+v[2]*s,z=-v[0]*s+v[2]*c,y=v[1];
  var c2=Math.cos(pitch),s2=Math.sin(pitch),y2=y*c2-z*s2,z2=y*s2+z*c2,f=7/(7-z2);
- return{x:230+95*x*f,y:225-95*y2*f,z:z2};}
+ return{x:230+95*cz*x*f,y:225-95*cz*y2*f,z:z2};}
 function R3(v){var c=Math.cos(yaw),s=Math.sin(yaw),x=v[0]*c+v[2]*s,z=-v[0]*s+v[2]*c,c2=Math.cos(pitch),s2=Math.sin(pitch);return[x,v[1]*c2-z*s2,v[1]*s2+z*c2];}
 function quad(s,ang,k){var n=s.n,a=n[0]?0:n[1]?1:2,u=[0,0,0],v=[0,0,0];u[(a+1)%3]=1;v[(a+2)%3]=1;
  var cc=[s.p[0]+n[0]*.5,s.p[1]+n[1]*.5,s.p[2]+n[2]*.5],pts=[];
@@ -218,6 +218,10 @@ function hit(mx,my){for(var i=drawn.length-1;i>=0;i--){var pr=drawn[i].pr,ins=fa
  for(var a=0,b=3;a<4;b=a++){if((pr[a].y>my)!==(pr[b].y>my)&&mx<(pr[b].x-pr[a].x)*(my-pr[a].y)/(pr[b].y-pr[a].y)+pr[a].x)ins=!ins;}
  if(ins)return drawn[i].s;}return null;}
 var hover=null,drag=null;
+function zf(z,e){return Math.max(.5,Math.min(4,z*Math.exp(-e.deltaY*(e.ctrlKey?.01:.002))));}
+cv.addEventListener('wheel',function(e){e.preventDefault();cz=zf(cz,e);},{passive:false});
+cv.addEventListener('dblclick',function(e){if(!hit.apply(null,pos(e))){cz=1;yaw=-0.6;pitch=0.5;}});
+
 function pos(e){var r=cv.getBoundingClientRect();return[(e.clientX-r.left)*460/r.width,(e.clientY-r.top)*440/r.height];}
 cv.addEventListener('pointerdown',function(e){var m=pos(e),s=hit(m[0],m[1]);cv.setPointerCapture(e.pointerId);drag={s:s,x:m[0],y:m[1],lx:m[0],ly:m[1],done:false};cv.style.cursor='grabbing';});
 cv.addEventListener('pointermove',function(e){var m=pos(e);
@@ -256,20 +260,27 @@ function tsneStep(ex){var Q=[],z=0,i,j;
   Yv[i][0]=.7*Yv[i][0]-60*gx;Yv[i][1]=.7*Yv[i][1]-60*gy;}
  var mxv=0;for(i=0;i<N;i++){Y[i][0]+=Yv[i][0];Y[i][1]+=Yv[i][1];}
  var mx0=0,my0=0;Y.forEach(function(p){mx0+=p[0]/N;my0+=p[1]/N;});Y.forEach(function(p){p[0]-=mx0;p[1]-=my0;});}
-var mapDirty=true;
+var mapDirty=true,mz=1,mpx=0,mpy=0;
+mv.addEventListener('wheel',function(e){e.preventDefault();var r=mv.getBoundingClientRect(),x=(e.clientX-r.left)*330/r.width-165,y=(e.clientY-r.top)*440/r.height-210,z0=mz;mz=zf(mz,e);var k=mz/z0;mpx=x-(x-mpx)*k;mpy=y-(y-mpy)*k;},{passive:false});
+var mdrag=null;
+mv.addEventListener('pointerdown',function(e){mv.setPointerCapture(e.pointerId);mdrag={x:e.clientX,y:e.clientY,px:mpx,py:mpy};mv.style.cursor='grabbing';});
+mv.addEventListener('pointermove',function(e){if(!mdrag)return;var r=mv.getBoundingClientRect();mpx=mdrag.px+(e.clientX-mdrag.x)*330/r.width;mpy=mdrag.py+(e.clientY-mdrag.y)*440/r.height;});
+mv.addEventListener('pointerup',function(){mdrag=null;mv.style.cursor='grab';});
+mv.addEventListener('dblclick',function(){mz=1;mpx=0;mpy=0;});
+mv.style.cursor='grab';
 function drawMap(){if(mapDirty){buildP();mapDirty=false;warm=Math.max(warm,120);}
  if(warm>0){var ex=warm>100?4:1;for(var k=0;k<4;k++)tsneStep(ex);warm-=4;}else tsneStep(1);
- var r=0;Y.forEach(function(p){r=Math.max(r,Math.abs(p[0]),Math.abs(p[1]));});var tsc=Math.min(150,150/(r||1));view.sc+=(tsc-view.sc)*.1;
+ var r=0;Y.forEach(function(p){r=Math.max(r,Math.abs(p[0]),Math.abs(p[1]));});var tsc=Math.min(150,150/(r||1));view.sc+=(tsc-view.sc)*.1;var MX0=165+mpx,MY0=210+mpy,VS=view.sc*mz;
  mx.clearRect(0,0,330,440);
- for(var f=0;f<6;f++){if(faceSolved(f)){var pts=[];S.forEach(function(s,i){if(s.c===f)pts.push(Y[i]);});var cx0=0,cy0=0;pts.forEach(function(p){cx0+=p[0];cy0+=p[1];});cx0/=pts.length;cy0/=pts.length;mx.beginPath();mx.arc(165+cx0*view.sc,210+cy0*view.sc,34,0,7);mx.strokeStyle='#f5c451';mx.lineWidth=2.5;mx.stroke();}}
- S.forEach(function(s,i){var moved=s.c!==faceIdx(s.n);mx.beginPath();mx.arc(165+Y[i][0]*view.sc,210+Y[i][1]*view.sc,5,0,7);mx.fillStyle=COL[s.c];mx.fill();if(moved){mx.strokeStyle='#ff6b6b';mx.lineWidth=1.5;mx.stroke();}});
+ for(var f=0;f<6;f++){if(faceSolved(f)){var pts=[];S.forEach(function(s,i){if(s.c===f)pts.push(Y[i]);});var cx0=0,cy0=0;pts.forEach(function(p){cx0+=p[0];cy0+=p[1];});cx0/=pts.length;cy0/=pts.length;mx.beginPath();mx.arc(MX0+cx0*VS,MY0+cy0*VS,34,0,7);mx.strokeStyle='#f5c451';mx.lineWidth=2.5;mx.stroke();}}
+ S.forEach(function(s,i){var moved=s.c!==faceIdx(s.n);mx.beginPath();mx.arc(MX0+Y[i][0]*VS,MY0+Y[i][1]*VS,5,0,7);mx.fillStyle=COL[s.c];mx.fill();if(moved){mx.strokeStyle='#ff6b6b';mx.lineWidth=1.5;mx.stroke();}});
  // the sentence star: same cloud, same math, one more point
- var st=Y[54];mx.save();mx.translate(165+st[0]*view.sc,210+st[1]*view.sc);mx.rotate(Math.PI/4);mx.beginPath();
+ var st=Y[54];mx.save();mx.translate(MX0+st[0]*VS,MY0+st[1]*VS);mx.rotate(Math.PI/4);mx.beginPath();
  for(var q=0;q<8;q++){var rr=q%2?4:10,aa=q*Math.PI/4;mx.lineTo(Math.cos(aa)*rr,Math.sin(aa)*rr);}mx.closePath();
  mx.fillStyle='#fff';mx.fill();mx.strokeStyle='#fff';mx.lineWidth=1;mx.stroke();mx.restore();
  // your guesses: same cloud, labelled; their normal block scales with p (explainer section 8)
  mx.font='11px sans-serif';mx.textAlign='left';
- shown.forEach(function(g,k){var p=Y[55+k];if(!p)return;var px=165+p[0]*view.sc,py=210+p[1]*view.sc,hot=Math.max(0,Math.min(1,g.cos*1.6));
+ shown.forEach(function(g,k){var p=Y[55+k];if(!p)return;var px=MX0+p[0]*VS,py=MY0+p[1]*VS,hot=Math.max(0,Math.min(1,g.cos*1.6));
   mx.beginPath();mx.arc(px,py,5,0,7);mx.strokeStyle=g===gs[gs.length-1]?'#fff':'rgb('+Math.round(139+106*hot)+','+Math.round(152+48*hot)+','+Math.round(169-69*hot)+')';mx.lineWidth=2;mx.stroke();
   mx.fillStyle='#e6edf3';mx.fillText(g.w,px+8,py+4);});
  mx.fillStyle='#8b98a9';mx.font='12px sans-serif';mx.textAlign='left';mx.fillText('t-SNE KL cost: '+kl.toFixed(3)+'  ·  scatter J: '+J().toFixed(1)+' / 54',10,414);mx.fillText('hint pull '+Math.round(prog()*100)+'% · star = hidden word · rings = guesses',10,398);mx.fillText('red outline = wrong face',10,430);mx.textAlign='center';}
